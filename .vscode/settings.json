@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "sem.h": "c",
+        "types.h": "c"
+    }
+}

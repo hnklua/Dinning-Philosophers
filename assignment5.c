@@ -16,6 +16,18 @@
 
 #define PHILOSOPHERS 5
 
+// Make sure to add random function
+int randomGaussian(int mean, int stddev) {
+	double mu = 0.5 + (double) mean;
+	double sigma = fabs((double) stddev);
+	double f1 = sqrt(-2.0 * log((double) rand() / (double) RAND_MAX));
+	double f2 = 2.0 * 3.14159265359 * (double) rand() / (double) RAND_MAX;
+	if (rand() & (1 << 5)) 
+		return (int) floor(mu + sigma * cos(f2) * f1);
+	else            
+		return (int) floor(mu + sigma * sin(f2) * f1);
+}
+
 int main(int argc, char *argv[]){	
 	// Relevant Variables
 	sem_t *chopsticks; // Array of Semaphores for chopsticks
@@ -77,8 +89,8 @@ int main(int argc, char *argv[]){
 				sem_post(mutex); // Reopen critical section
 
 				// Eating state
-				sleep(abs(eatingTime)); // Phislosopher eats
 				printf("Philosopher %d (PID: %d) is currently eating \n", i + 1, getpid()); 
+				sleep(abs(eatingTime)); // Phislosopher eats
 				secondsElapsed += eatingTime; 
 
 				// Put down chopsticks
