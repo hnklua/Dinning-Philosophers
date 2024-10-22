@@ -17,7 +17,7 @@
 #define PHILOSOPHERS 5
 
 // Make sure to add random function
-int randomGaussian(int mean, int stddev) {
+/*int randomGaussian(int mean, int stddev) {
 	double mu = 0.5 + (double) mean;
 	double sigma = fabs((double) stddev);
 	double f1 = sqrt(-2.0 * log((double) rand() / (double) RAND_MAX));
@@ -26,24 +26,36 @@ int randomGaussian(int mean, int stddev) {
 		return (int) floor(mu + sigma * cos(f2) * f1);
 	else            
 		return (int) floor(mu + sigma * sin(f2) * f1);
-}
+}*/
 
 int main(int argc, char *argv[]){	
 	// Relevant Variables
-	sem_t *chopsticks; // Array of Semaphores for chopsticks
+	sem_t *chopsticks; // Shared memory for chopsticks
 	sem_t *mutex; // Make sure only one process is in the critical section
 	pid_t pids[PHILOSOPHERS]; // Array of pids representing each philosopher
 	int runningPhilosophers = PHILOSOPHERS; // Tracks active running processes. 
-	int secondsElapsed = 0; // Second of eating elapsed 
+	int *secondsElapsed; // Second of eating elapsed 
 
-	// Create a set of semaphores based on the constant for Philosophers. 
-	//int shmid = semget(IPC_PRIVATE, sizeof(sem_t) * PHILOSOPHERS, S_IRUSR | S_IWUSR); 
+	// Delcare new shared memory for Philosophers, eating time and attach chopsticks and seoncdsElapsed to shared memory. 
 	int shmid = shmget(IPC_PRIVATE, sizeof(sem_t) * PHILOSOPHERS + sizeof(sem_t), IPC_CREAT | 0666); 
+	int shmidEat = shmget(IPC_PRIVATE, sizeof(int) * PHILOSOPHERS, IPC_CREAT | 0666); 
 	chopsticks = (sem_t*)shmat(shmid, 0, 0); // Attach chopsticks to process
 	mutex = (sem_t*)(chopsticks + PHILOSOPHERS); // Place mutex after chopstics array in shared memory
+	secondsElapsed = (int*)shmat(shmidEat, 0, 0);  // Attach secondsElpased to process
+
+	// Attached secondElpased to shared memory so parent can gain access to philosopher eating time 
+	for (int i = 0; i < PHILOSOPHERS; i++) {
+		secondsElapsed[i] = 0; 
+	}
 	
-	// Error check for shmat
+	// Error check for shmat (chopsticks)
 	if (chopsticks == (void*) - 1) {
+		write(2, strerror(errno), strlen(strerror(errno))); 
+		return -errno; 
+	}
+
+	// Error check for shmat (secondsElapsed)
+	if (secondsElapsed == (void*) - 1) {
 		write(2, strerror(errno), strlen(strerror(errno))); 
 		return -errno; 
 	}
@@ -73,7 +85,7 @@ int main(int argc, char *argv[]){
 		// Philosopher process 
 		if (pid == 0) {
 			srand(time(NULL) ^ getpid()); ; // Random number generator
-			while (secondsElapsed < 100) {
+			while (secondsElapsed[i] < 100) {
 				int eatingTime = randomGaussian(9, 3); 
 				int thinkingTime = randomGaussian(11, 7); 
 				
@@ -91,7 +103,7 @@ int main(int argc, char *argv[]){
 				// Eating state
 				printf("Philosopher %d (PID: %d) is currently eating \n", i + 1, getpid()); 
 				sleep(abs(eatingTime)); // Phislosopher eats
-				secondsElapsed += eatingTime; 
+				secondsElapsed[i] += eatingTime; 
 
 				// Put down chopsticks
 				sem_post(&chopsticks[(i + 1) % PHILOSOPHERS]); // Release left chopstick 
@@ -111,7 +123,7 @@ int main(int argc, char *argv[]){
 				pid_t result = waitpid(pids[i], &status, WNOHANG); 
 
 				if (result == pids[i]) {
-					printf("Philosopher %d (PID: %d) is done and has left the table\n", i + 1, getpid()); 
+					printf("Philosopher %d (PID: %d) is done and has left the table. Total Eating Time: %d seconds\n", i + 1, getpid(), secondsElapsed[i]); 
 					pids[i] = 0; 
 					runningPhilosophers--; 
 				}
